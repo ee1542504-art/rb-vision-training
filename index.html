@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#08111f">
+<title>RB Vision Trainer</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#08111f;color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{width:min(100%,620px);margin:auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{margin:0;font-size:28px}.sub{color:#94a3b8;font-size:13px}
+.score{text-align:right;font-weight:800}
+.card{background:#111d30;border:1px solid #293952;border-radius:18px;padding:14px;margin-top:12px}
+.tags{display:flex;gap:7px;flex-wrap:wrap}.tag{background:#1d2a40;border-radius:999px;padding:7px 10px;font-size:13px}
+.instructions{font-size:15px;line-height:1.4}
+.field{height:min(68vh,470px);min-height:300px;position:relative;overflow:hidden;border-radius:18px;border:2px solid #35513e;
+background:repeating-linear-gradient(90deg,transparent 0 24.5%,rgba(255,255,255,.13) 24.5% 25%,transparent 25% 49.5%,rgba(255,255,255,.13) 49.5% 50%,transparent 50% 74.5%,rgba(255,255,255,.13) 74.5% 75%,transparent 75%),repeating-linear-gradient(0deg,#14532d 0 9.8%,#176534 9.8% 10.2%)}
+.player{position:absolute;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;transform:translate(-50%,-50%);z-index:2;transition:left .09s linear,top .09s linear}
+.rb{background:#facc15;color:#111}.ol{background:#e5e7eb;color:#111}.def{background:#ef4444;color:#fff}
+.choices{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+button{width:100%;min-height:56px;border-radius:15px;border:1px solid #34445d;background:#17243a;color:#fff;font-size:15px;font-weight:900;touch-action:manipulation}
+button:active{transform:scale(.97)}button:disabled{opacity:.35}
+.primary{margin-top:10px;background:#facc15;color:#111;border-color:#facc15}
+.result{min-height:58px;display:flex;align-items:center;font-size:14px;line-height:1.35}
+.good{color:#86efac}.bad{color:#fca5a5}
+@media(max-width:420px){main{padding:12px}h1{font-size:24px}.field{min-height:285px}.player{width:32px;height:32px;font-size:9px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><div class="sub">FOOTBALL • RB DEVELOPMENT</div><h1>RB Vision Trainer</h1></div>
+  <div class="score">⭐ <span id="score">0</span><br><span class="sub">🔥 <span id="streak">0</span> streak</span></div>
+</header>
+
+<section class="card">
+  <div class="tags">
+    <span class="tag" id="concept">Inside Zone</span>
+    <span class="tag">Level <span id="level">1</span></span>
+    <span class="tag">⏱ <span id="time">—</span></span>
+  </div>
+  <p class="instructions" id="message">Press START REP. Watch the blocks and defenders move, then tap the lane you would hit.</p>
+
+  <div class="field">
+    <div id="rb" class="player rb" style="left:50%;top:91%">RB</div>
+    <div id="ol1" class="player ol" style="left:43%;top:75%">OL</div>
+    <div id="ol2" class="player ol" style="left:57%;top:75%">OL</div>
+    <div id="d1" class="player def" style="left:39%;top:49%">DL</div>
+    <div id="d2" class="player def" style="left:61%;top:49%">DL</div>
+    <div id="lb1" class="player def" style="left:45%;top:28%">LB</div>
+    <div id="lb2" class="player def" style="left:65%;top:30%">LB</div>
+  </div>
+
+  <div class="choices">
+    <button id="left" disabled>← LEFT</button>
+    <button id="middle" disabled>↑ MIDDLE</button>
+    <button id="right" disabled>RIGHT →</button>
+  </div>
+
+  <button id="start" class="primary">START REP</button>
+
+  <div id="result" class="card result">Your goal: press the hole, read the second level, then make one decisive cut.</div>
+</section>
+</main>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+let score=0,streak=0,rep=0,running=false,raf=0,startTime=0,limit=0,correct="";
+
+const concepts=["Inside Zone","Outside Zone","Counter","Duo","Read Option"];
+const answers=["left","right","middle","left","right"];
+
+function pos(id,x,y){$(id).style.left=x+"%";$(id).style.top=y+"%";}
+function resetPlayers(){
+ pos("rb",50,91);pos("ol1",43,75);pos("ol2",57,75);
+ pos("d1",39,49);pos("d2",61,49);pos("lb1",45,28);pos("lb2",65,30);
+}
+function setChoices(enabled){
+ ["left","middle","right"].forEach(id=>$(id).disabled=!enabled);
+}
+function explanation(){
+ return [
+ "Press the track, stay square, then take the backside crease when the linebacker commits.",
+ "Stretch the defense horizontally and plant once the edge lane opens.",
+ "Stay patient through the initial action and follow the pulling block.",
+ "Press the middle and make the linebacker choose before cutting.",
+ "Keep your eyes on the read defender and attack the space he gives you."
+ ][(rep-1)%5];
+}
+function finish(pick){
+ if(!running)return;
+ running=false;cancelAnimationFrame(raf);setChoices(false);$("start").disabled=false;
+ if(pick===correct){
+   score+=10;streak++;
+   $("result").innerHTML='<span class="good">✓ GOOD READ</span> — '+explanation();
+ }else{
+   streak=0;
+   $("result").innerHTML='<span class="bad">✗ MISSED READ</span> — '+explanation();
+ }
+ $("score").textContent=score;$("streak").textContent=streak;$("time").textContent="DONE";
+}
+function animate(now){
+ if(!running)return;
+ const progress=Math.min(1,(now-startTime)/limit);
+ const left=Math.max(0,(limit-(now-startTime))/1000);
+ $("time").textContent=left.toFixed(1)+"s";
+
+ if(rep%2===1){
+   pos("d1",39+8*progress,49+10*progress);
+   pos("d2",61-6*progress,49+9*progress);
+   pos("lb1",45-11*progress,28+20*progress);
+   pos("lb2",65-2*progress,30+18*progress);
+   pos("ol1",43-4*progress,75-18*progress);
+   pos("ol2",57+4*progress,75-18*progress);
+ }else{
+   pos("d1",39-6*progress,49+10*progress);
+   pos("d2",61+6*progress,49+9*progress);
+   pos("lb1",45+9*progress,28+19*progress);
+   pos("lb2",65+7*progress,30+17*progress);
+   pos("ol1",43+3*progress,75-18*progress);
+   pos("ol2",57-3*progress,75-18*progress);
+ }
+
+ if(now-startTime>=limit){finish("none");return;}
+ raf=requestAnimationFrame(animate);
+}
+function startRep(){
+ if(running)return;
+ rep++;running=true;
+ $("start").disabled=true;setChoices(true);resetPlayers();
+ const index=(rep-1)%5;
+ $("concept").textContent=concepts[index];
+ $("level").textContent=Math.min(5,Math.ceil(rep/2));
+ correct=answers[index];
+ limit=Math.max(1500,3000-(Math.min(5,Math.ceil(rep/2))-1)*300);
+ $("message").textContent="Watch the movement. Pick the lane when you see the opening.";
+ $("result").textContent="READ IT...";
+ startTime=performance.now();
+ raf=requestAnimationFrame(animate);
+}
+["left","middle","right"].forEach(id=>$(id).addEventListener("click",function(){finish(id);}));
+$("start").addEventListener("click",startRep);
+$("start").addEventListener("touchend",function(e){e.preventDefault();startRep();},{passive:false});
+resetPlayers();
+})();
+</script>
+</body>
+</html>
